@@ -13,9 +13,40 @@ class ExcelProcessor
         $sheet = $spreadsheet->getSheet(0);
         $data = $sheet->toArray(null, true, true, true);
 
-        // Remove first row (it's at index 1, row 2 has actual headers)
+        // DEBUG: Save first 10 rows to a file so we can see the structure
+        $debugFile = storage_path('app/excel_debug.txt');
+        $debugContent = "Excel File Debug Output\n";
+        $debugContent .= "=====================\n\n";
+
+        $rowCount = 0;
+        foreach ($data as $rowIndex => $row) {
+            if ($rowCount >= 10) break;
+            $debugContent .= "Row $rowIndex:\n";
+            $debugContent .= "  A: " . ($row['A'] ?? 'NULL') . "\n";
+            $debugContent .= "  B: " . ($row['B'] ?? 'NULL') . "\n";
+            $debugContent .= "  C: " . ($row['C'] ?? 'NULL') . "\n";
+            $debugContent .= "  D: " . ($row['D'] ?? 'NULL') . "\n";
+            $debugContent .= "  E: " . ($row['E'] ?? 'NULL') . "\n";
+            $debugContent .= "  F: " . ($row['F'] ?? 'NULL') . "\n";
+            $debugContent .= "  G: " . ($row['G'] ?? 'NULL') . "\n";
+            $debugContent .= "  H: " . ($row['H'] ?? 'NULL') . "\n";
+            $debugContent .= "  I: " . ($row['I'] ?? 'NULL') . "\n";
+            $debugContent .= "\n";
+            $rowCount++;
+        }
+
+        file_put_contents($debugFile, $debugContent);
+
+        // Now continue with the normal processing
+        // Remove first row (row 1)
         unset($data[1]);
-        $headers = $data[2]; // Row 2 is the header
+
+        // Row 2 should be headers
+        $headers = $data[2] ?? [];
+        $debugContent .= "\nHeaders (Row 2):\n";
+        $debugContent .= json_encode($headers, JSON_PRETTY_PRINT) . "\n";
+        file_put_contents($debugFile, $debugContent, FILE_APPEND);
+
         unset($data[2]);
 
         // Parse data rows
@@ -36,6 +67,11 @@ class ExcelProcessor
                 'Billable Amount' => floatval($row['I'] ?? 0),
             ];
         }
+
+        // Save first 5 processed rows for debugging
+        $debugContent = "\n\nFirst 5 Processed Rows:\n";
+        $debugContent .= json_encode(array_slice($rows, 0, 5), JSON_PRETTY_PRINT) . "\n";
+        file_put_contents($debugFile, $debugContent, FILE_APPEND);
 
         // Get report month/year from first date
         $reportDate = !empty($rows) ? date('F Y', strtotime($rows[0]['Date'])) : date('F Y');
