@@ -16,7 +16,7 @@ class InvoicePDF extends FPDF
         $this->reportDate = $reportDate;
 
         // Set logo path
-        $this->logoPath = storage_path('app/logos/_RL_Primary_Red.png');
+        $this->logoPath = storage_path('app/images/_RL_Primary_Red.png');
 
         // Extract red color from logo if it exists, otherwise use default
         if (file_exists($this->logoPath)) {
