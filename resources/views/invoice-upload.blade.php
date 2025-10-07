@@ -13,7 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #e72507 100%);
+            background: linear-gradient(135deg, #1a1a3e 0%, #ed1c24 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -28,6 +28,15 @@
             padding: 40px;
             max-width: 500px;
             width: 100%;
+        }
+
+        .logo {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 120px;
+            height: auto;
+            z-index: 1000;
         }
 
         h1 {
@@ -134,6 +143,7 @@
     </style>
 </head>
 <body>
+    <img src="{{ asset('storage/images/_RL_Primary_Red.png') }}" alt="Red Letter Logo" class="logo">
     <div class="container">
         <h1>Invoice Report Generator</h1>
         <p>Upload your Excel file to generate a PDF report</p>
