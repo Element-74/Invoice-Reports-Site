@@ -105,12 +105,12 @@ class InvoicePDF extends FPDF
         $this->Cell(0, 10, 'Page ' . $this->PageNo() . ' of {nb}', 0, 0, 'C');
     }
 
-    public function generate($sections, $outputName)
+    public function generate($sections, $outputName, $customComments = [])
     {
         $this->AddPage();
 
-        foreach ($sections as $section) {
-            $this->addSection($section);
+        foreach ($sections as $segmentName => $section) {
+            $this->addSection($section, $customComments, $segmentName);
         }
 
         // Save to storage
@@ -126,7 +126,7 @@ class InvoicePDF extends FPDF
         return $outputPath;
     }
 
-    private function addSection($section)
+    private function addSection($section, $customComments = [], $segmentName = '')
     {
         // Section header in red
         $this->SetFont('Arial', 'B', 12);
@@ -142,7 +142,7 @@ class InvoicePDF extends FPDF
         }
 
         // Projects
-        foreach ($section['projects'] as $project) {
+        foreach ($section['projects'] as $projectName => $project) {
             // Check if we need a new page
             if ($this->GetY() > 250) {
                 $this->AddPage();
@@ -151,22 +151,63 @@ class InvoicePDF extends FPDF
             // Project name in bold
             $this->SetFont('Arial', 'B', 11);
             $this->SetTextColor(0, 0, 0);
-            $this->Cell(0, 8, $project['name'], 0, 1);
+            $this->Cell(0, 8, $projectName, 0, 1);
 
             // Project lines
             $this->SetFont('Arial', '', 10);
-            foreach ($project['lines'] as $line) {
-                // Check if this is a comment line (starts with spaces and bullet)
-                if (preg_match('/^\s+' . chr(149) . '/', $line)) {
-                    // This is a comment line - use MultiCell for wrapping
-                    // Set left margin for indentation
-                    $currentX = $this->GetX();
-                    $this->SetX($currentX + 5); // Indent 5mm
-                    $this->MultiCell(0, 6, $line);
-                    $this->SetX($currentX); // Reset X position
+            $lines = $project['lines'];
+            $lineCount = count($lines);
+            $skipNext = false;
+
+            for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
+                if ($skipNext) {
+                    $skipNext = false;
+                    continue;
+                }
+
+                $line = $lines[$lineIndex];
+
+                // Check if this is an expense (starts with "- $")
+                $isExpense = (strpos($line, '- $') === 0);
+                $nextLine = isset($lines[$lineIndex + 1]) ? $lines[$lineIndex + 1] : null;
+                $hasDescription = $nextLine && (strpos(ltrim($nextLine), chr(149)) === 0);
+
+                // Output the current line
+                $this->Cell(0, 6, $line, 0, 1);
+
+                if ($isExpense && $hasDescription) {
+                    // This is an expense with description
+                    // Output the description line (it's already in the next line)
+                    $this->Cell(0, 6, $nextLine, 0, 1);
+
+                    // Check for custom comment on the EXPENSE (using first line index)
+                    $entryId = md5($segmentName . '_' . $projectName . '_' . $lineIndex);
+                    if (!empty($customComments[$entryId])) {
+                        $comment = trim($customComments[$entryId]);
+                        // More indentation for expense custom comments
+                        $customComment = '    - ' . $comment;
+
+                        // Set left margin for indentation
+                        $currentX = $this->GetX();
+                        $this->SetX($currentX + 10); // Indent 10mm for deeper indentation
+                        $this->MultiCell(0, 6, $customComment);
+                        $this->SetX($currentX); // Reset X position
+                    }
+
+                    $skipNext = true; // Skip the description line in next iteration
                 } else {
-                    // Regular line (hours/rate) - use Cell
-                    $this->Cell(0, 6, $line, 0, 1);
+                    // Regular labor entry - check for custom comment
+                    $entryId = md5($segmentName . '_' . $projectName . '_' . $lineIndex);
+                    if (!empty($customComments[$entryId])) {
+                        $comment = trim($customComments[$entryId]);
+                        $bulletComment = '  ' . chr(149) . ' ' . $comment;
+
+                        // Set left margin for indentation
+                        $currentX = $this->GetX();
+                        $this->SetX($currentX + 5); // Indent 5mm
+                        $this->MultiCell(0, 6, $bulletComment);
+                        $this->SetX($currentX); // Reset X position
+                    }
                 }
             }
             $this->Ln(1);

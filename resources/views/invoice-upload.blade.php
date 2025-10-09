@@ -239,5 +239,14 @@
             }
         }, false);
     </script>
+
+    @if(session('pdf_download'))
+    <script>
+        // Automatically trigger PDF download
+        window.onload = function() {
+            window.location.href = "{{ route('invoice.download') }}";
+        };
+    </script>
+    @endif
 </body>
 </html>

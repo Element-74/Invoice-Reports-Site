@@ -14,6 +14,12 @@ use App\Http\Controllers\InvoiceController;
 */
 
 Route::get('/', [InvoiceController::class, 'index'])->name('invoice.index');
-Route::post('/upload', [InvoiceController::class, 'upload'])->name('invoice.upload');
+Route::post('/upload', [InvoiceController::class, 'processUpload'])->name('invoice.upload');
+Route::get('/comments', [InvoiceController::class, 'showCommentForm'])->name('invoice.comments');
+Route::post('/generate-pdf', [InvoiceController::class, 'generatePdf'])->name('invoice.generate');
+Route::get('/download-pdf', [InvoiceController::class, 'downloadPdf'])->name('invoice.download');
 
-
+// Catch-all fallback route - redirect to upload page
+Route::fallback(function () {
+    return redirect()->route('invoice.index');
+});
