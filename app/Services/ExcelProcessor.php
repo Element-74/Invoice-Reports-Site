@@ -28,9 +28,9 @@ class ExcelProcessor
             $rows[] = [
                 'Date' => $this->parseDate($row['A']),
                 'Service' => trim($row['B'] ?? ''),
-                'Quantity' => floatval($row['C'] ?? 0),
-                'Unit Cost' => floatval($row['D'] ?? 0),
-                'Billable Amount' => floatval($row['E'] ?? 0),
+                'Quantity' => $this->parseNumber($row['C'] ?? 0),
+                'Unit Cost' => $this->parseNumber($row['D'] ?? 0),
+                'Billable Amount' => $this->parseNumber($row['E'] ?? 0),
                 'Campaign Segment' => trim($row['F'] ?? ''),
                 'Project Name' => trim($row['G'] ?? ''),
                 'Comments' => trim($row['H'] ?? ''),
@@ -58,6 +58,13 @@ class ExcelProcessor
             return Date::excelToDateTimeObject($value)->format('Y-m-d');
         }
         return date('Y-m-d', strtotime($value));
+    }
+
+    private function parseNumber($value)
+    {
+        // Remove currency symbols, commas, and spaces
+        $cleaned = preg_replace('/[$,\s]/', '', $value);
+        return floatval($cleaned);
     }
 
     private function groupData($rows)
@@ -94,7 +101,7 @@ class ExcelProcessor
         // Process each project to create formatted lines
         foreach ($grouped as $segmentName => &$segment) {
             foreach ($segment['projects'] as $projectName => &$project) {
-                $this->processProjectLines($project);
+                $this->processProjectLines($project, $segmentName);
                 $segment['subtotal'] += $project['subtotal'];
             }
             $segment['projects'] = array_values($segment['projects']); // Re-index
@@ -103,14 +110,18 @@ class ExcelProcessor
         return array_values($grouped);
     }
 
-    private function processProjectLines(&$project)
+    private function processProjectLines(&$project, $segmentName)
     {
         $lines = [];
         $subtotal = 0.0;
         $unitCostGroups = [];
 
         $firstLine = null;
-        $lastLine = null;
+        $expenses = []; // Handle multiple expenses
+        $individualEntries = []; // For Web Development
+
+        // Check if this is Web Development
+        $isWebDevelopment = ($segmentName === 'Web Development');
 
         foreach ($project['entries'] as $entry) {
             $service = $entry['Service'];
@@ -120,23 +131,35 @@ class ExcelProcessor
             $rate = $entry['Unit Cost'];
             $amt = $entry['Billable Amount'];
 
-            // Check for special handling based on comments
-            // The original script looked for "Rooted Web" in Description
-            // This file has Comments instead
+            // Check for special "Rooted Web" comment
             if ($service === 'Rooted Web' && !empty($comments)) {
                 $firstLine = $comments;
             }
             // Check for Expense type
             elseif ($type === 'Expense' && !empty($comments)) {
-                $lastLine = $comments . ' - $' . number_format($amt, 2);
+                // Format like individual entries: amount first, then comment
+                $expenses[] = [
+                    'amount' => $amt,
+                    'comment' => $comments
+                ];
                 $subtotal += $amt;
             }
-            // Regular hours entry
+            // Regular labor entry
             else {
-                if (!isset($unitCostGroups[$rate])) {
-                    $unitCostGroups[$rate] = 0.0;
+                if ($isWebDevelopment) {
+                    // For Web Development, keep individual entries with comments
+                    $individualEntries[] = [
+                        'qty' => $qty,
+                        'rate' => $rate,
+                        'comment' => $comments
+                    ];
+                } else {
+                    // For other sections, aggregate by rate
+                    if (!isset($unitCostGroups[$rate])) {
+                        $unitCostGroups[$rate] = 0.0;
+                    }
+                    $unitCostGroups[$rate] += $qty;
                 }
-                $unitCostGroups[$rate] += $qty;
                 $subtotal += $amt;
             }
         }
@@ -146,14 +169,30 @@ class ExcelProcessor
             $lines[] = $firstLine;
         }
 
-        foreach ($unitCostGroups as $rate => $qty) {
-            $label = $qty <= 1 ? 'hour' : 'hours';
-            $lines[] = '- ' . number_format($qty, 2) . ' ' . $label . ' @ $' . number_format($rate, 2) . '/hr';
+        if ($isWebDevelopment) {
+            // Show individual entries with comments as bullets
+            foreach ($individualEntries as $entry) {
+                $label = $entry['qty'] <= 1 ? 'hour' : 'hours';
+                $lines[] = '- ' . number_format($entry['qty'], 2) . ' ' . $label . ' @ $' . number_format($entry['rate'], 2) . '/hr';
+                if (!empty($entry['comment'])) {
+                    $lines[] = '        ' . chr(149) . ' ' . $entry['comment'];
+                }
+            }
+        } else {
+            // Aggregate by rate for other sections
+            foreach ($unitCostGroups as $rate => $qty) {
+                $label = $qty <= 1 ? 'hour' : 'hours';
+                $lines[] = '- ' . number_format($qty, 2) . ' ' . $label . ' @ $' . number_format($rate, 2) . '/hr';
+            }
         }
 
-        if ($lastLine) {
-            $lines[] = $lastLine;
-        }
+        // Add all expenses with proper formatting
+foreach ($expenses as $expense) {
+    $lines[] = '- $' . number_format($expense['amount'], 2);
+    if (!empty($expense['comment'])) {
+        $lines[] = '  ' . chr(149) . ' ' . $expense['comment'];
+    }
+}
 
         $project['lines'] = $lines;
         $project['subtotal'] = $subtotal;

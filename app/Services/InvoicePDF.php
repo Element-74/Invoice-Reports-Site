@@ -156,7 +156,18 @@ class InvoicePDF extends FPDF
             // Project lines
             $this->SetFont('Arial', '', 10);
             foreach ($project['lines'] as $line) {
-                $this->Cell(0, 6, $line, 0, 1);
+                // Check if this is a comment line (starts with spaces and bullet)
+                if (preg_match('/^\s+' . chr(149) . '/', $line)) {
+                    // This is a comment line - use MultiCell for wrapping
+                    // Set left margin for indentation
+                    $currentX = $this->GetX();
+                    $this->SetX($currentX + 5); // Indent 5mm
+                    $this->MultiCell(0, 6, $line);
+                    $this->SetX($currentX); // Reset X position
+                } else {
+                    // Regular line (hours/rate) - use Cell
+                    $this->Cell(0, 6, $line, 0, 1);
+                }
             }
             $this->Ln(1);
         }
